@@ -1,26 +1,11 @@
 # -*- coding:utf-8 -*-
-""" Свойства симплексов и графов"""
+""" Геометрия сети """
 import math
 import numpy as np
 from numpy import linalg as la
 
-class mDistance(object):
-    # Distance matrix. Different degree of euclidean distance is available
-    # todo:	support different dimensions of coordinates
- 	def __init__(self, lPoints, degree=2, coeff=1.):
-	    numPoints = len(lPoints)
-	    self.mD = np.zeros((numPoints, numPoints))
-	    for i in range(numPoints):
-	        for j in range(i+1, numPoints):
-	            diff = np.array(lPoints[i]) - np.array(lPoints[j])
-	            self.mD[i, j] = np.inner(diff, diff)
-	            if degree != 2:
-	            	self.mD[i, j] = math.sqrt(self.mD[i, j])**degree
-	            self.mD[j, i] = self.mD[i, j]
-	
-
 class Point(object):
-	"""Point is vector"""
+	"""Point is not vector"""
 
 	def VectorMult(v1, v2, metrica):
 		return np.inner(v1, np.inner(metrica, v2))
@@ -74,34 +59,82 @@ class Point(object):
 			vDi[i] = Point.Distance(self, lPoints[i], None, vType)
 		return vDi
 
-	def Dec2Simplex(self, simplex):
-		self.di = self.vDi(simplex.lPoints, "dec")
+	def Dec2PointBase(self, pBase):
+		self.di = self.vDi(pBase.lPoints, "dec")
 		self.di2 = -self.di/2
-		self.bG = np.inner(simplex.mL, self.di2)
-		self.bL = np.inner(simplex.mG, self.bG)
-		self.bc = self.bG + simplex.bcCenter # barycentric
+		self.bL = np.inner(pBase.mG, self.bG)
+		self.bc = self.bG + pBase.bcCenter # barycentric
 
-	def __init__(self, vCoord, simplex=None, vType="dec"):
+	def __init__(self, vCoord, pBase=None, vType="dec", id=''):
+		self.id = id
 		if type(vCoord) == list:
 			vCoord = np.array(vCoord)
 		if vType == "dec":
 			self.dec = vCoord
-		elif vType == "bc":
-			if simplex != None:	self.dec = Point.BC2dec(simplex, vCoord)
-			else:	self.bc = vCoord
-		elif vType == "bG":
-			if simplex != None:
-				self.bc = vCoord + simplex.bcCenter # barycentric
-				self.dec = Point.BC2dec(simplex, self.bc)
-			else:	self.bG = vCoord
+			if pBase != None:	self.Dec2PointBase(pBase)
+		elif vType == "bi":
+			self.bi = vCoord
+		elif vType == "di":
+			self.di = vCoord
 		else:
 			return
-		if simplex != None:	self.Dec2Simplex(simplex)
+
+
+class dbCoord(object):
+	def mutNorma(self, db):
+		return Vector.ScalarProd(self.di, db.bi) # mutual norma
+
+	def distance(db1, db2, sign=1):
+		# sign=1: points are on the same side; -1: on other sides
+		return -2*(db1.mutNorma(db2) + math.sqrt(sign*db1.norma*db2.norma))
+
+	def bi2di(bi, pBase):
+		return np.inner(pBase.Dm, bi)
+
+	def di2bi(di, pBase):
+		return np.inner(pBase.Lm, di)
+
+	def power(self):
+		# power of point
+		return -2*self.bi[0]
+
+	def __init__(self, vDistance, pBase):
+		self.pBase = pBase
+		self.di = np.hstack((1, -vDistance/2))
+		self.bi = dbCoord.di2bi(self.di, pBase)
+		self.norma = np.inner(self.di, self.bi) # negative distance to base
+
+
+class Vector(object):
+	'''Vector operations'''
+	def ScalarProd(v1, v2):
+		return np.inner(v1, v2)
+
+	def vDistance(vPoint, lPoints, degree=2, coeff=1.):
+		#Create distance vector on base of list of decart coordinates
+		numComponents = len(lPoints)
+		vD = np.zeros(numComponents)
+		decP = np.array(vPoint)
+		for i in range(numComponents):
+			decI = np.array(lPoints[i])
+			if len(decP) > len(decI):	decI.resize((1, len(decP)))
+			elif len(decP) < len(decI):	decP.resize((1, len(decI)))
+			diff = decP - decI
+			dist = np.inner(diff, diff)
+			if degree != 2:	dist = math.sqrt(dist)**degree
+			vD[i] = dist*coeff
+		return vD
 
 
 class Matrix(object):
-	'''Matrix minor'''
+	def Bilinear(matrix, v1, v2=None):
+		if v2 == None:
+			return np.inner(v1, np.inner(matrix, v1))
+		else:
+			return np.inner(v1, np.inner(matrix, v2))
+
 	def Minor(matrix, row=0, col=0):
+		'''Matrix minor'''
 		mTemp = np.vstack((matrix[:row,:], matrix[row+1:,:]))
 		return np.hstack((mTemp[:,:col], mTemp[:,col+1:]))
 
@@ -119,13 +152,20 @@ class Matrix(object):
 		mFund = la.inv(Matrix.Minor(mLap))
 		return Matrix.mtrDistance(mFund, True)
 
+	def mDistance(lPoints, degree=2, coeff=1.):
+		#Create distance matrix on base of list of decart coordinates
+		numPoints = len(lPoints)
+		mD = np.zeros((numPoints, numPoints))
+		for i in range(numPoints):
+			vD = Vector.vDistance(lPoints[i], lPoints, degree, coeff)
+			mD[i] = vD
+		return mD
+
 	def VectorEdging(matrix, vector=[], scalar=0):
-		size = len(matrix)
+		#Insert vector and scalar to matrix
 		mResult = np.vstack((vector, matrix))
-		cV = np.sum(mResult, 1)
-		cV.shape = (size+1, 1)
-		cV[0] = scalar
-		for i in range(size):	cV[i+1] = vector[i]
+		cV = np.hstack((scalar, vector))
+		cV.shape = (len(cV), 1)
 		return np.hstack((cV, mResult))
 
 	def List2Matrix(lRecords, symm=True):
@@ -143,7 +183,8 @@ class Matrix(object):
 		for record in lRecords:
 			ind1 = lItems.index(record[0])
 			ind2 = lItems.index(record[1])
-			matrix[ind1,ind2] = record[2]
+			matrix[ind1,ind2] = 1
+			if len(record) > 2:	matrix[ind1,ind2] = record[2]
 			if symm: matrix[ind2,ind1] = matrix[ind1,ind2]
 		return (matrix, lItems)
 
@@ -154,8 +195,8 @@ class Matrix(object):
 			self.matrix = mValues
 			self.items = []
 
-class Simplex(object):
-	"""Simplex is set of N points with known distance matrix and laplacian"""
+class PointBase(object):
+	"""PointBase is set of N points with known distance matrix and laplacian"""
 	def mGreen(self, vWeight=[]):
 		# Green:
 		w2 = np.inner(self.vWeight, self.vWeight)
@@ -165,8 +206,12 @@ class Simplex(object):
 		mG = np.matmul(mOne, np.matmul(self.mD2, mOne))
 		return mG
 
-	def radius(): return self.rs
-	def volume(): return self.volume
+	def radius(self): return self.rs
+	def connectivity(self): return 1/self.rs
+	def volume(self): return self.volume
+	def symmetry(self):
+		ra = np.sum(self.mD)/(self.size*self.size)/2
+		return ra/self.rs
 
 	def IniMetric(self, mData, dtype='Distance'):
 		if dtype == 'Distance':
@@ -185,7 +230,7 @@ class Simplex(object):
 		self.rs = self.Lm[0, 0] #sphere distance
 		self.dCM = la.det(self.Dm) #Caley-Menger determinant
 		self.uK = -1/self.dCM #laplacian potential
-		self.volume = math.sqrt(-self.dCM)/math.factorial(self.size-1) #volume of simplex
+		self.volume = math.sqrt(-self.dCM)/math.factorial(self.size-1) #volume of set
 
 		# barycentric coordinate of sphere center
 		self.bcSphere = self.Lm[0, 1:]
@@ -198,12 +243,35 @@ class Simplex(object):
 
 		self.IniMetric(mData, dtype)
 
+class FullPointBase(PointBase):
+	"""Full graph. All nodes are connected with each other"""
+	def __init__(self, size=3, connect=1):
+		mLap = -np.ones((size, size))*connect
+		for i in range(size):
+			mLap[i, i] = (size-1)*connect
+		PointBase.__init__(self, mLap, 'Laplacian')
+		
+class ChainPointBase(PointBase):
+	"""Chain. May be opened or closed"""
+	def __init__(self, size=3, connect=1, closed=False):
+		mAdj = np.zeros((size, size))
+		for i in range(size):
+			if i > 0:		mAdj[i, i-1] = connect
+			if i+1 < size:	mAdj[i, i+1] = connect
+		if closed:
+			mAdj[0, size-1] = connect
+			mAdj[size-1, 0] = connect
+		PointBase.__init__(self, Matrix.mtrLaplacian(mAdj), 'Laplacian')
 
+class StarPointBase(PointBase):
+	"""Star graph. All nodes are connected with center"""
+	def __init__(self, size=3, connect=1):
+		mAdj = np.zeros((size, size))
+		for i in range(1, size):
+			mAdj[0, i] = connect
+			mAdj[i, 0] = connect
+		PointBase.__init__(self, Matrix.mtrLaplacian(mAdj), 'Laplacian')
 
-
-
-def testSimplex(lPoints):
-	sTest = Simplex(lPoints, [1, 1, 1])
 
 
 def Grid(xSize, ySize=1, zSize=1):
@@ -214,10 +282,10 @@ def Grid(xSize, ySize=1, zSize=1):
 				lPoints.append([i, j, k])
 	return lPoints
 
-def ResistanceSimplex():
+def ResistanceBase():
 	size = 5
 	lGrid = Grid(size, size, size)
-	simRes = Simplex(lGrid, "res")
+	simRes = PointBase(lGrid, "res")
 	#print(simRes.vbCenter)
 	#for i in range(size):
 	#	print(simRes.vbCenter[i*size: (i+1)*size])
@@ -227,9 +295,3 @@ def ResistanceSimplex():
 	print(Point.Distance(P, Q, simRes, "di2"))
 	print(Point.Distance(P, Q, simRes, "bal"))
 
-#for i in range(1):
-#	testSimplex([[0, 0], [0, 3+i], [4+i, 0]])
-
-#testSimplex([[0, 0], [0, 4], [4, 0]])
-#testSimplex([[0, 0], [0, 5], [5, 0]])
-#ResistanceSimplex()
