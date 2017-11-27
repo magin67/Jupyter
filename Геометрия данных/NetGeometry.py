@@ -81,6 +81,11 @@ class Point(object):
 
 
 class dbCoord(object):
+
+	def projection(self): # projection of point to base
+		vPrDistance = -2*self.di + self.norma*np.ones(len(self.di))
+		return dbCoord(vPrDistance[1:], self.pBase)
+
 	def mutNorma(self, db):
 		return Vector.ScalarProd(self.di, db.bi) # mutual norma
 
@@ -88,15 +93,23 @@ class dbCoord(object):
 		# sign=1: points are on the same side; -1: on other sides
 		return -2*(db1.mutNorma(db2) + math.sqrt(sign*db1.norma*db2.norma))
 
+	def prdistance(db1, db2):
+		return db1.norma + db2.norma - 2*db1.mutNorma(db2)
+
 	def bi2di(bi, pBase):
 		return np.inner(pBase.Dm, bi)
 
 	def di2bi(di, pBase):
 		return np.inner(pBase.Lm, di)
 
-	def power(self):
-		# power of point
+	def power(self): # power of point
 		return -2*self.bi[0]
+
+	def radius(self): # distance to base sphere center
+		return self.power() + self.pBase.rs
+
+	def centrality(self): # index of centrality
+		return -self.power()/self.pBase.rs
 
 	def __init__(self, vDistance, pBase):
 		self.pBase = pBase
@@ -161,6 +174,14 @@ class Matrix(object):
 			mD[i] = vD
 		return mD
 
+	def ScalarProduct(mD, lIndex):
+		if len(lIndex) == 3: # vectors are: ki & kj
+			i,j,k = lIndex[0], lIndex[1], lIndex[2]
+			return (mD[i,k] + mD[j,k] - mD[i,j])/2
+		else: # vectors are: ij & kl
+			i,j,k,l = lIndex[0], lIndex[1], lIndex[2], lIndex[3]
+			return (mD[i,l] + mD[j,k] - mD[i,k] - mD[j,l])/2
+
 	def VectorEdging(matrix, vector=[], scalar=0):
 		#Insert vector and scalar to matrix
 		mResult = np.vstack((vector, matrix))
@@ -223,8 +244,8 @@ class PointBase(object):
 			self.mL = Matrix.mtrLaplacian(mData)
 			self.mD = Matrix.mLaplacian2Distance(self.mL)
 
-		self.Dm = Matrix.VectorEdging(-self.mD/2, self.vWeight, 0)
-		self.Lm = la.inv(self.Dm)
+		self.Dm = Matrix.VectorEdging(-self.mD/2, self.vWeight, 0) 	#Distance metric tensor
+		self.Lm = la.inv(self.Dm)									#Laplace metric tensor
 		if dtype == 'Distance': self.mL = self.Lm[1:, 1:]
 
 		self.rs = self.Lm[0, 0] #sphere distance
