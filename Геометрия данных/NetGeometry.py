@@ -89,12 +89,13 @@ class dbCoord(object):
 	def mutNorma(self, db):
 		return Vector.ScalarProd(self.di, db.bi) # mutual norma
 
-	def distance(db1, db2, sign=1):
+	def distance(self, db, sign=1):
 		# sign=1: points are on the same side; -1: on other sides
-		return -2*(db1.mutNorma(db2) + math.sqrt(sign*db1.norma*db2.norma))
+		return -2*(self.mutNorma(db) + sign*math.sqrt(self.norma*db.norma))
 
-	def prdistance(db1, db2):
-		return db1.norma + db2.norma - 2*db1.mutNorma(db2)
+	def pdistance(self, db):
+		# distance of proections
+		return self.norma + db.norma - 2*self.mutNorma(db)
 
 	def bi2di(bi, pBase):
 		return np.inner(pBase.Dm, bi)
@@ -229,7 +230,9 @@ class PointBase(object):
 
 	def radius(self): return self.rs
 	def connectivity(self): return 1/self.rs
-	def volume(self): return self.volume
+	def volume(self): #volume of set
+		return math.sqrt(-self.dCM)/math.factorial(self.size-1)
+
 	def symmetry(self):
 		ra = np.sum(self.mD)/(self.size*self.size)/2
 		return ra/self.rs
@@ -251,7 +254,6 @@ class PointBase(object):
 		self.rs = self.Lm[0, 0] #sphere distance
 		self.dCM = la.det(self.Dm) #Caley-Menger determinant
 		self.uK = -1/self.dCM #laplacian potential
-		self.volume = math.sqrt(-self.dCM)/math.factorial(self.size-1) #volume of set
 
 		# barycentric coordinate of sphere center
 		self.bcSphere = self.Lm[0, 1:]
