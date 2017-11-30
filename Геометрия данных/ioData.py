@@ -63,13 +63,20 @@ def mNodesCoordinate(nRow, nCol, startNode = 1):
             node += 1
     return mNodes
 
-def SetOfNodes(mNodes, rowSize, colSize, rowStart=0, colStart=0):
+def SetOfNodes(mNodes, maska, rowStart=0, colStart=0): #rowSize, colSize, 
     #Выборка координат узлов из массива
+    rowSize, colSize = maska.shape[0], maska.shape[1]
     lSet = []
     for row in range(rowSize):
         for col in range(colSize):
-            lSet.append(int(mNodes[rowStart + row, colStart + col]))
+            if maska[row, col] > 0:
+                lSet.append(int(mNodes[rowStart + row, colStart + col]))
     return lSet
+
+def SquareMaska(size):
+    maska = np.zeros((size, size))
+    maska[0, 0], maska[0, size-1], maska[size-1, 0], maska[size-1, size-1] = 1, 1, 1, 1
+    return maska
 
 
 """ Архив кода

@@ -219,8 +219,7 @@ class Matrix(object):
 
 class PointBase(object):
 	"""PointBase is set of N points with known distance matrix and laplacian"""
-	def mGreen(self, vWeight=[]):
-		# Green:
+	def mGreen(self, vWeight=[]): # Green matrix
 		w2 = np.inner(self.vWeight, self.vWeight)
 		vGreen = self.vWeight / w2
 
@@ -231,11 +230,61 @@ class PointBase(object):
 	def radius(self): return self.rs
 	def connectivity(self): return 1/self.rs
 	def volume(self): #volume of set
-		return math.sqrt(-self.dCM)/math.factorial(self.size-1)
+		if (self.dCM) > 0: # wrong
+			return -math.sqrt(self.dCM)/math.factorial(self.size-1)
+		else:	# correct
+			return math.sqrt(-self.dCM)/math.factorial(self.size-1)
 
-	def symmetry(self):
-		ra = np.sum(self.mD)/(self.size*self.size)/2
-		return ra/self.rs
+	def vol2(self): #volume^2 of set
+		return -self.dCM/math.factorial(self.size-1)**2
+
+	def sq2(self): # sum of square^2 edges
+		return np.trace(self.mL)/(self.uK*math.factorial(self.size-2)**2)
+
+	def ra(self): # average half distance
+		return np.sum(self.mD)/(self.size*self.size)/2
+
+	def dcs(self): # distance from centroid to sphere center
+		return self.rs - self.ra()
+
+	def rh(self): # almost radius of in-sphere
+		return 1/np.trace(self.mL) # sum of 1/h^2
+
+	def symIndex(self): # index of symmetry
+		return self.ra()/self.rs
+
+	def hIndex(self): # index of height
+		return self.rh()/self.rs
+
+	def sqIndex(self): # index of height
+		return self.sq2()/self.rs**(self.size-2)
+
+	def vIndex(self): # index of volume
+		return self.vol2()/self.rs**(self.size-1)
+
+	def value(self, idParam):
+		# value of base parameter
+		if idParam == 'rs':
+			return self.rs
+		elif idParam == 'ra':
+			return self.ra()
+		elif idParam == 'rh':
+			return self.rh()
+		elif idParam == 'dcs':
+			return self.dcs()
+		elif idParam == 'vol':
+			return self.volume()
+		elif idParam == 'sq2':
+			return self.sq2()
+		elif idParam == 'sIndex':
+			return self.symIndex()
+		elif idParam == 'hIndex':
+			return self.hIndex()
+		elif idParam == 'sqIndex':
+			return self.sqIndex()
+		elif idParam == 'vIndex':
+			return self.vIndex()
+		return 0
 
 	def IniMetric(self, mData, dtype='Distance'):
 		if dtype == 'Distance':
