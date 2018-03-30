@@ -1,5 +1,5 @@
 # -*- coding:utf-8 -*-
-""" Нелокальная геометрия """
+""" Нелокальная геометрия, март 2018 """
 import math
 import numpy as np
 from numpy import linalg as la
@@ -7,50 +7,49 @@ from numpy import linalg as la
 class Point(object):
 	"""Point is not vector"""
 
-	def VectorMult(v1, v2, metrica):
+	def QuadrForm(v1, v2, metrica):
 		return np.inner(v1, np.inner(metrica, v2))
 
-	def MetricTensor(simplex=None, vType="dec", size=2):
-		if simplex == None:		return np.eye(size)
-		return simplex.MetricTensor(vType)
+	def MetricTensor(Base=None, vType="dec", size=2):
+		if Base == None:		return np.eye(size)
+		return Base.MetricTensor(vType)
 
-	def Distance(P1, P2, simplex=None, vType="dec"):
-		metrica = Point.MetricTensor(simplex, vType, len(P1.dec))
+	def Distance(P1, P2, Base=None, vType="dec"):
+		metrica = Point.MetricTensor(Base, vType, len(P1.dec))
 
 		if vType == "di2":	dx = P1.di2 - P2.di2
 		elif vType == "bG":	dx = P1.bG - P2.bG
 		elif vType == "bL":	dx = P1.bL - P2.bL
 		else: 				dx = P1.dec - P2.dec
-		dist = Point.VectorMult(dx, dx, metrica)
+		dist = Point.QuadrForm(dx, dx, metrica)
 		if vType == "res" and dist != 0: dist = 1/math.sqrt(dist)
 		return dist
 
-	def Norma(self, simplex=None, vType="dec"):
-		metrica = Point.MetricTensor(simplex, vType, len(self.dec))
+	def Norma(self, Base=None, vType="dec"):
+		metrica = Point.MetricTensor(Base, vType, len(self.dec))
 		if vType == "di2":		vector = self.di2
 		elif vType == "bG":		vector = self.bG
 		elif vType == "bL":		vector = self.bL
 		else:					vector = self.dec
-		return Point.VectorMult(vector, vector, metrica)
+		return Point.QuadrForm(vector, vector, metrica)
 
-	def ScalarProd(P1, P2, simplex=None, vType="dec"):
-		metrica = Point.MetricTensor(simplex, vType, len(P1.dec))
+	def ScalarProd(P1, P2, Base=None, vType="dec"):
+		metrica = Point.MetricTensor(Base, vType, len(P1.dec))
 		if vType == "di2":	v1, v2 = P1.di2, P2.di2
 		elif vType == "bG":	v1, v2 = P1.bG, P2.bG
 		elif vType == "bL":	v1, v2 = P1.bL, P2.bL
 		else: 				v1, v2 = P1.dec, P2.dec
-		return Point.VectorMult(v1, v2, metrica)
+		return Point.QuadrForm(v1, v2, metrica)
 
-	def BC2dec(simplex, bcCoord):
-		numPoints = simplex.size
+	def BC2dec(Base, bcCoord):
+		numPoints = Base.size
 		numCoord = numPoints - 1
 		vDec = np.zeros(numCoord)
-		if simplex == None: return vDec
+		if Base == None: return vDec
 		for i in range(numPoints):
 			for j in range(numCoord):
-				vDec[j] += simplex.lPoints[i].dec[j]*bcCoord[i]
+				vDec[j] += Base.lPoints[i].dec[j]*bcCoord[i]
 		return vDec
-
 
 	def vDi(self, lPoints, vType="dec"):
 		size = len(lPoints)
@@ -59,19 +58,19 @@ class Point(object):
 			vDi[i] = Point.Distance(self, lPoints[i], None, vType)
 		return vDi
 
-	def Dec2PointBase(self, pBase):
-		self.di = self.vDi(pBase.lPoints, "dec")
+	def Dec2BaseSet(self, Base):
+		self.di = self.vDi(Base.lPoints, "dec")
 		self.di2 = -self.di/2
-		self.bL = np.inner(pBase.mG, self.bG)
-		self.bc = self.bG + pBase.bcCenter # barycentric
+		self.bL = np.inner(Base.mG, self.bG)
+		self.bc = self.bG + Base.bcCo # barycentric
 
-	def __init__(self, vCoord, pBase=None, vType="dec", id=''):
+	def __init__(self, vCoord, Base=None, vType="dec", id=''):
 		self.id = id
 		if type(vCoord) == list:
 			vCoord = np.array(vCoord)
 		if vType == "dec":
 			self.dec = vCoord
-			if pBase != None:	self.Dec2PointBase(pBase)
+			if Base != None:	self.Dec2PointBase(Base)
 		elif vType == "bi":
 			self.bi = vCoord
 		elif vType == "di":
@@ -84,10 +83,10 @@ class dbCoord(object):
 
 	def projection(self): # projection of point to base
 		vPrDistance = -2*self.di + self.norma*np.ones(len(self.di))
-		return dbCoord(vPrDistance[1:], self.pBase)
+		return dbCoord(vPrDistance[1:], self.Base)
 
 	def mutNorma(self, db):
-		return Vector.ScalarProd(self.di, db.bi) # mutual norma
+		return Tuple.Convolution(self.di, db.bi) # mutual norma
 
 	def distance(self, db, sign=1):
 		# sign=1: points are on the same side; -1: on other sides
@@ -97,38 +96,38 @@ class dbCoord(object):
 		# distance of proections
 		return self.norma + db.norma - 2*self.mutNorma(db)
 
-	def bi2di(bi, pBase):
-		return np.inner(pBase.Dm, bi)
+	def bi2di(bi, Base):
+		return np.inner(Base.Gm, bi)
 
-	def di2bi(di, pBase):
-		return np.inner(pBase.Lm, di)
+	def di2bi(di, Base):
+		return np.inner(Base.Lm, di)
 
-	def power(self): # power of point
+	def orbital(self): # power of point
 		return -2*self.bi[0]
 
 	def radius(self): # distance to base sphere center
-		return self.power() + self.pBase.rs
+		return self.orbital() + self.Base.ro
 
 	def centrality(self): # index of centrality
-		return -self.power()/self.pBase.rs
+		return -self.orbital()/self.Base.ro
 
-	def __init__(self, vDistance, pBase):
-		self.pBase = pBase
-		self.di = np.hstack((1, -vDistance/2))
-		self.bi = dbCoord.di2bi(self.di, pBase)
+	def __init__(self, tDistance, Base):
+		self.Base = Base
+		self.di = np.hstack((1, -tDistance/2))
+		self.bi = dbCoord.di2bi(self.di, Base)
 		self.norma = np.inner(self.di, self.bi) # negative distance to base
 
 
-class Vector(object):
-	'''Vector operations'''
-	def ScalarProd(v1, v2):
+class Tuple(object):
+	'''Tuple operations'''
+	def Convolution(v1, v2):
 		return np.inner(v1, v2)
 
-	def vDistance(vPoint, lPoints, degree=2, coeff=1.):
-		#Create distance vector on base of list of decart coordinates
+	def Distance(tPoint, lPoints, degree=2, coeff=1.):
+		#Create distance tuple on base of list of decart coordinates
 		numComponents = len(lPoints)
-		vD = np.zeros(numComponents)
-		decP = np.array(vPoint)
+		tD = np.zeros(numComponents)
+		decP = np.array(tPoint)
 		for i in range(numComponents):
 			decI = np.array(lPoints[i])
 			if len(decP) > len(decI):	decI.resize((1, len(decP)))
@@ -136,8 +135,8 @@ class Vector(object):
 			diff = decP - decI
 			dist = np.inner(diff, diff)
 			if degree != 2:	dist = math.sqrt(dist)**degree
-			vD[i] = dist*coeff
-		return vD
+			tD[i] = dist*coeff
+		return tD
 
 
 class Matrix(object):
@@ -156,23 +155,22 @@ class Matrix(object):
 		vProd = np.outer(np.ones(len(matrix)), np.diag(matrix))
 		mTrans = vProd + np.transpose(vProd) - 2*matrix
 		if edging:
-			return Matrix.VectorEdging(mTrans, np.diag(matrix), 0)
+			return Matrix.Edging(mTrans, np.diag(matrix), 0)
 		return mTrans
 
 	def mtrLaplacian(matrix):
 		return np.eye(len(matrix))*np.sum(matrix, 0) - matrix
 
-	def mLaplacian2Distance(mLap):
+	def Laplacian2Gramian(mLap):
 		mFund = la.inv(Matrix.Minor(mLap))
-		return Matrix.mtrDistance(mFund, True)
+		return -Matrix.mtrDistance(mFund, True)/2
 
 	def mDistance(lPoints, degree=2, coeff=1.):
 		#Create distance matrix on base of list of decart coordinates
 		numPoints = len(lPoints)
 		mD = np.zeros((numPoints, numPoints))
 		for i in range(numPoints):
-			vD = Vector.vDistance(lPoints[i], lPoints, degree, coeff)
-			mD[i] = vD
+			mD[i] = Tuple.Distance(lPoints[i], lPoints, degree, coeff)
 		return mD
 
 	def ScalarProduct(mD, lIndex):
@@ -183,7 +181,7 @@ class Matrix(object):
 			i,j,k,l = lIndex[0], lIndex[1], lIndex[2], lIndex[3]
 			return (mD[i,l] + mD[j,k] - mD[i,k] - mD[j,l])/2
 
-	def VectorEdging(matrix, vector=[], scalar=0):
+	def Edging(matrix, vector=[], scalar=0):
 		#Insert vector and scalar to matrix
 		mResult = np.vstack((vector, matrix))
 		cV = np.hstack((scalar, vector))
@@ -217,8 +215,8 @@ class Matrix(object):
 			self.matrix = mValues
 			self.items = []
 
-class PointBase(object):
-	"""PointBase is set of N points with known distance matrix and laplacian"""
+class BaseSet(object):
+	"""Set of N (=self.size) elements with known scalar products or laplacian"""
 	def mGreen(self, vWeight=[]): # Green matrix
 		w2 = np.inner(self.vWeight, self.vWeight)
 		vGreen = self.vWeight / w2
@@ -227,45 +225,45 @@ class PointBase(object):
 		mG = np.matmul(mOne, np.matmul(self.mD2, mOne))
 		return mG
 
-	def radius(self): return self.rs
-	def connectivity(self): return 1/self.rs
+	def radius(self): return self.ro
+	def connectivity(self): return 1/self.ro
 	def volume(self): #volume of set
-		if (self.dCM) > 0: # wrong
-			return -math.sqrt(self.dCM)/math.factorial(self.size-1)
+		if (self.detG) > 0: # wrong
+			return -math.sqrt(self.detG)/math.factorial(self.size-1)
 		else:	# correct
-			return math.sqrt(-self.dCM)/math.factorial(self.size-1)
+			return math.sqrt(-self.detG)/math.factorial(self.size-1)
 
 	def vol2(self): #volume^2 of set
-		return -self.dCM/math.factorial(self.size-1)**2
+		return -self.detG/math.factorial(self.size-1)**2
 
 	def sq2(self): # sum of square^2 edges
-		return np.trace(self.mL)/(self.uK*math.factorial(self.size-2)**2)
+		return np.trace(self.mL)/(self.cf*math.factorial(self.size-2)**2)
 
-	def ra(self): # average half distance
-		return np.sum(self.mD)/(self.size*self.size)/2
+	def ra(self): # average scalar products
+		return -np.sum(self.mG)/(self.size*self.size)
 
 	def dcs(self): # distance from centroid to sphere center
-		return self.rs - self.ra()
+		return self.ro - self.ra()
 
 	def rh(self): # almost radius of in-sphere
 		return 1/np.trace(self.mL) # sum of 1/h^2
 
 	def symIndex(self): # index of symmetry
-		return self.ra()/self.rs
+		return self.ra()/self.ro
 
 	def hIndex(self): # index of height
-		return self.rh()/self.rs
+		return self.rh()/self.ro
 
 	def sqIndex(self): # index of height
-		return self.sq2()/self.rs**(self.size-2)
+		return self.sq2()/self.ro**(self.size-2)
 
 	def vIndex(self): # index of volume
-		return self.vol2()/self.rs**(self.size-1)
+		return self.vol2()/self.ro**(self.size-1)
 
 	def value(self, idParam):
 		# value of base parameter
-		if idParam == 'rs':
-			return self.rs
+		if idParam == 'ro':
+			return self.ro
 		elif idParam == 'ra':
 			return self.ra()
 		elif idParam == 'rh':
@@ -288,42 +286,44 @@ class PointBase(object):
 
 	def IniMetric(self, mData, dtype='Distance'):
 		if dtype == 'Distance':
-			self.mD = mData
+			ones = np.ones(self.size)
+			self.mG = np.outer(ones, self.norms) + np.outer(self.norms, ones) - mData/2
 		elif dtype == 'Laplacian':
 			self.mL = mData
-			self.mD = Matrix.mLaplacian2Distance(self.mL)
+			self.mG = Matrix.Laplacian2Gramian(self.mL)
 		else: #dtype == 'Connect':
 			self.mL = Matrix.mtrLaplacian(mData)
-			self.mD = Matrix.mLaplacian2Distance(self.mL)
+			self.mG = Matrix.Laplacian2Gramian(self.mL)
 
-		self.Dm = Matrix.VectorEdging(-self.mD/2, self.vWeight, 0) 	#Distance metric tensor
-		self.Lm = la.inv(self.Dm)									#Laplace metric tensor
+        # metric tensors:
+		self.Gm = Matrix.Edging(self.mG, self.ch, 0) 	# Major gramian
+		self.Lm = la.inv(self.Gm)						# Major laplacian 
 		if dtype == 'Distance': self.mL = self.Lm[1:, 1:]
 
-		self.rs = self.Lm[0, 0] #sphere distance
-		self.dCM = la.det(self.Dm) #Caley-Menger determinant
-		self.uK = -1/self.dCM #laplacian potential
+		self.ro = self.Lm[0, 0]     #orthogonal center norm - base sphere quadrance
+		self.detG = la.det(self.Gm) #Caley-Menger determinant
+		self.cf = -1/self.detG      #laplacian cofactor
 
-		# barycentric coordinate of sphere center
-		self.bcSphere = self.Lm[0, 1:]
+		# barycentric coordinate of orthogonal center
+		self.bcCo = self.Lm[0, 1:]
 
-	def __init__(self, mData, dtype='Distance', vWeight=[]):
+	def __init__(self, mData, dtype='Distance', norms=[], ch=[]):
 		self.size = np.shape(mData)[0]
-
-		if vWeight == []:	self.vWeight = np.ones(self.size)
-		else:				self.vWeight = np.array(vWeight)
-
+		if norms == []:	self.norms = np.zeros(self.size)
+		else:			self.norms = np.array(norms)
+		if ch == []:	self.ch = np.ones(self.size)
+		else:			self.ch = np.array(ch)
 		self.IniMetric(mData, dtype)
 
-class FullPointBase(PointBase):
+class FullGraph(BaseSet):
 	"""Full graph. All nodes are connected with each other"""
 	def __init__(self, size=3, connect=1):
 		mLap = -np.ones((size, size))*connect
 		for i in range(size):
 			mLap[i, i] = (size-1)*connect
-		PointBase.__init__(self, mLap, 'Laplacian')
-		
-class ChainPointBase(PointBase):
+		BaseSet.__init__(self, mLap, 'Laplacian')
+
+class ChainGraph(BaseSet):
 	"""Chain. May be opened or closed"""
 	def __init__(self, size=3, connect=1, closed=False):
 		mAdj = np.zeros((size, size))
@@ -333,16 +333,16 @@ class ChainPointBase(PointBase):
 		if closed:
 			mAdj[0, size-1] = connect
 			mAdj[size-1, 0] = connect
-		PointBase.__init__(self, Matrix.mtrLaplacian(mAdj), 'Laplacian')
+		BaseSet.__init__(self, Matrix.mtrLaplacian(mAdj), 'Laplacian')
 
-class StarPointBase(PointBase):
+class StarGraph(BaseSet):
 	"""Star graph. All nodes are connected with center"""
 	def __init__(self, size=3, connect=1):
 		mAdj = np.zeros((size, size))
 		for i in range(1, size):
 			mAdj[0, i] = connect
 			mAdj[i, 0] = connect
-		PointBase.__init__(self, Matrix.mtrLaplacian(mAdj), 'Laplacian')
+		BaseSet.__init__(self, Matrix.mtrLaplacian(mAdj), 'Laplacian')
 
 def Grid(xSize, ySize=1, zSize=1):
 	lPoints = []
@@ -355,7 +355,7 @@ def Grid(xSize, ySize=1, zSize=1):
 def ResistanceBase():
 	size = 5
 	lGrid = Grid(size, size, size)
-	simRes = PointBase(lGrid, "res")
+	simRes = BaseSet(lGrid, "res")
 	#print(simRes.vbCenter)
 	#for i in range(size):
 	#	print(simRes.vbCenter[i*size: (i+1)*size])
@@ -364,4 +364,3 @@ def ResistanceBase():
 	Q = Point([-1, 1, 0], simRes, "res")
 	print(Point.Distance(P, Q, simRes, "di2"))
 	print(Point.Distance(P, Q, simRes, "bal"))
-
